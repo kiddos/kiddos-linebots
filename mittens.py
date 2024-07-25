@@ -30,7 +30,7 @@ mittens_parser = WebhookParser(mittens_channel_secret)
 username = config.get('mongo', 'username')
 password = config.get('mongo', 'password')
 
-MODEL = 'mistral'
+MODEL = 'llama3'
 HISTORY_SIZE = 30
 
 mongo_url = f'mongodb://{username}:{password}@localhost/'
