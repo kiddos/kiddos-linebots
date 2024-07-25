@@ -1,3 +1,7 @@
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
 import os
 
 from fastapi import FastAPI
@@ -7,7 +11,6 @@ import mittens
 import kiddos_bot
 import yoshi
 import pastor
-
 
 app = FastAPI()
 

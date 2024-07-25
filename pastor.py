@@ -13,14 +13,18 @@ from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 import configparser
 from pymongo import MongoClient
+from langchain_community.embeddings import OllamaEmbeddings
+from langchain_core.documents import Document
+from langchain_chroma import Chroma
 
+from bible import get_bible_chapters
 from utils import get_user_profile
 
 logger = logging.getLogger('uvicorn')
 config = configparser.ConfigParser()
 config.read('config.ini')
 
-# mittens
+# pastor
 pastor_channel_secret = config.get('pastor', 'LINE_CHANNEL_SECRET')
 pastor_channel_access_token = config.get('pastor', 'LINE_CHANNEL_ACCESS_TOKEN')
 pastor_configuration = Configuration(access_token=pastor_channel_access_token)
@@ -31,13 +35,19 @@ pastor_parser = WebhookParser(pastor_channel_secret)
 username = config.get('mongo', 'username')
 password = config.get('mongo', 'password')
 
-MODEL = 'qwen:7b'
+# MODEL = 'qwen:7b'
+MODEL = 'llama3'
 HISTORY_SIZE = 30
 
 mongo_url = f'mongodb://{username}:{password}@localhost/'
 mongo_client = MongoClient(mongo_url)
 db = mongo_client[MODEL]
-mittens_collection = db['pastor']
+pastor_collection = db['pastor']
+
+embeddings = OllamaEmbeddings(model=MODEL)
+chapters = get_bible_chapters()
+documents = [Document(page_content=c) for c in chapters]
+db = Chroma(persist_directory="./bible_chroma", embedding_function=embeddings)
 
 converter = opencc.OpenCC('s2t.json')
 
@@ -52,7 +62,7 @@ def save_response(user_id, user_input, response):
     'response': response,
     't': datetime.now(),
   }
-  mittens_collection.insert_many([entry])
+  pastor_collection.insert_many([entry])
 
 
 def chat(messages):
@@ -64,6 +74,7 @@ def chat(messages):
     'options': {
       'repeat_last_n': 256,
       'temperature': 0.95,
+      'num_predict': 1024,
     },
   }
   r = requests.post(url, json=data)
@@ -85,6 +96,7 @@ def create_system_prompt(user_name):
 「愛是恆久忍耐，又有恩慈；愛是不嫉妒；愛是不自誇，不張狂，不做害羞的事，不求自己的益處，不輕易發怒，不計算人的惡，不喜歡不義，只喜歡真理；凡事包容，凡事相信，凡事盼望，凡事忍耐。愛是永不止息。」
 這段經文來自《聖經》新約中的哥林多前書 13章 4-8節，它闡述了愛的真正本質和價值，這種愛超越了一切，是我認為非常美麗的一段文字。
 
+你將用中文與使用者對話
 你將跟使用者({user_name})對話
 你將使用聖經裡的道理來回答使用者的問題
 當使用者問問題時，請你用聖經的角度或是上帝的話來回答他
@@ -94,7 +106,7 @@ def create_system_prompt(user_name):
 
 
 def query_messages(user_id):
-  cursor = mittens_collection.find({
+  cursor = pastor_collection.find({
     'user_id': user_id
   }, {}).sort('t', -1).limit(HISTORY_SIZE)
   messages = []
@@ -112,13 +124,23 @@ def query_messages(user_id):
 
 
 def run_chat(user_id, user_name, user_input):
+  # docs = db.similarity_search(user_input)
+  #
+  # context = []
+  # for doc in docs:
+  #   context.append({'role': 'assistant', 'content': doc.page_content})
+  #   print(context[-1])
+
   messages = query_messages(user_id)
   messages = [{
     'role': 'system',
     'content': create_system_prompt(user_name)
   }] + messages
+  # messages += context
+  user_input += '\n請用中文回答'
   messages.append({'role': 'user', 'content': user_input})
   logger.info(str(messages[-1]))
+
   message = chat(messages)
   logger.info(str(message))
   save_response(user_id, user_input, message['content'])
@@ -126,7 +148,7 @@ def run_chat(user_id, user_name, user_input):
 
 
 @router.post('/pastor')
-async def mittens(request: Request):
+async def pastor(request: Request):
   signature = request.headers['X-Line-Signature']
 
   # get request body as text
