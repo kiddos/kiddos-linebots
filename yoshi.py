@@ -31,7 +31,7 @@ yoshi_parser = WebhookParser(yoshi_channel_secret)
 username = config.get('mongo', 'username')
 password = config.get('mongo', 'password')
 
-MODEL = 'qwen:7b'
+MODEL = 'qwen2'
 HISTORY_SIZE = 30
 
 mongo_url = f'mongodb://{username}:{password}@localhost/'
