@@ -1,0 +1,19 @@
+# Python specific
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python/
+env/
+venv/
+
+# Source control
+.git/
+.gitignore
+
+.ipynb_checkpoints
+notebooks
+
+data
+yoshi
+mittens

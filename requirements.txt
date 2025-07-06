@@ -1,0 +1,9 @@
+fastapi[standard]
+line-bot-sdk
+pymongo
+python-dotenv
+opencc-python-reimplemented
+sentence_transformers 
+ollama
+pysqlite3-binary
+chromadb
