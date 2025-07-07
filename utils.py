@@ -2,6 +2,7 @@ import os
 import requests
 import json
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import logging
 import uuid
 
@@ -80,7 +81,7 @@ def create_chat_function(create_system_prompt, chroma, mongo, model, name,
             'user_id': user_id,
             'user_input': user_input,
             'response': reply,
-            't': datetime.now(),
+            't': datetime.now(ZoneInfo("Asia/Taipei")),
         }
         mongo.insert_many([entry])
         return reply

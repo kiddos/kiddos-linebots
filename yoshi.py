@@ -1,4 +1,5 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import os
 
 from fastapi import APIRouter
@@ -44,8 +45,8 @@ with open(os.path.join(current_dir, 'yoshi.txt'), 'r') as f:
 
 
 def create_system_prompt(user_name):
-    now = datetime.now()
-    t = now.strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.now(ZoneInfo('Asia/Taipei'))
+    t = now.strftime('%Y-%m-%d %H:%M:%S')
     p = yoshi_prompt
     p += f'\n現在時間為 {t}。'
     p += f"\n你將跟 {user_name} 對話。\n"

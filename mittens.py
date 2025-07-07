@@ -1,4 +1,5 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import os
 
 from fastapi import APIRouter
@@ -43,7 +44,7 @@ with open(os.path.join(current_dir, 'mittens.txt'), 'r') as f:
 
 
 def create_system_prompt(user_name):
-    now = datetime.now()
+    now = datetime.now(ZoneInfo("Asia/Taipei"))
     t = now.strftime("%Y-%m-%d %H:%M:%S")
     p = mittens_prompt
     p += f"\nYour master's name is {user_name}. And you are now the cat butler."
