@@ -30,8 +30,9 @@ MODEL = os.getenv('MITTENS_MODEL')
 NAME = 'mittens'
 
 current_dir = os.path.dirname(__file__)
-client = chromadb.PersistentClient(path=os.path.join(current_dir, 'data', NAME))
-mittens_chroma = client.get_or_create_collection(NAME)
+# client = chromadb.PersistentClient(path=os.path.join(current_dir, 'data', NAME))
+chroma_client = chromadb.HttpClient(host=os.getenv('CHROMA_HOST'), port=int(os.getenv('CHROMA_PORT')))
+mittens_chroma = chroma_client.get_or_create_collection(NAME)
 
 mongo_client = get_mongo_client()
 db = mongo_client[NAME]

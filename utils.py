@@ -6,12 +6,10 @@ from zoneinfo import ZoneInfo
 import logging
 import uuid
 
-from dotenv import dotenv_values
 from pymongo import MongoClient
 import ollama
 from sentence_transformers import SentenceTransformer
 
-config = dotenv_values('.env')
 logger = logging.getLogger('uvicorn')
 embedder = SentenceTransformer("all-MiniLM-L6-v2", device='cpu')
 ollama_client = ollama.Client()

@@ -29,8 +29,9 @@ yoshi_line_api = AsyncMessagingApi(yoshi_async_api_client)
 yoshi_parser = WebhookParser(yoshi_channel_secret)
 
 current_dir = os.path.dirname(__file__)
-client = chromadb.PersistentClient(path=os.path.join(current_dir, 'data', NAME))
-yoshi_chroma = client.get_or_create_collection(NAME)
+# client = chromadb.PersistentClient(path=os.path.join(current_dir, 'data', NAME))
+chroma_client = chromadb.HttpClient(host=os.getenv('CHROMA_HOST'), port=int(os.getenv('CHROMA_PORT')))
+yoshi_chroma = chroma_client.get_or_create_collection(NAME)
 
 mongo_client = get_mongo_client()
 db = mongo_client[NAME]
