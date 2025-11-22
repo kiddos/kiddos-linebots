@@ -48,7 +48,6 @@ def create_chat_function(create_system_prompt, chroma, mongo, model, name,
             result.append(f'{doc}\n\t\t-- {t}')
         if len(result) == 0:
             return None
-        print(result)
         return '\n\n'.join(result)
 
     def chat(user_input, user_name, user_id):
