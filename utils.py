@@ -40,10 +40,16 @@ def create_chat_function(create_system_prompt, chroma, mongo, model, name,
             where={'user_id': user_id},
         )
         documents = results['documents'][0]
-        documents = [doc for doc in documents if len(doc) > 0]
-        if len(documents) == 0:
+        metadatas = results['metadatas'][0]
+        result = []
+        for i, doc in enumerate(documents):
+            metadata = metadatas[i]
+            t = metadata['time']
+            result.append(f'{doc}\n\t\t-- {t}')
+        if len(result) == 0:
             return None
-        return '\n\n'.join(documents)
+        print(result)
+        return '\n\n'.join(result)
 
     def chat(user_input, user_name, user_id):
         messages = []
@@ -61,7 +67,7 @@ def create_chat_function(create_system_prompt, chroma, mongo, model, name,
         logger.info(reply)
 
         t = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
-        text = f'time: {t}\n{user_name}: {user_input}\n{name}: {reply}\n'
+        text = f'{user_name}: {user_input}\n{name}: {reply}'
         texts = [text]
         ids = [str(uuid.uuid4()) for _ in texts]
 
@@ -70,7 +76,8 @@ def create_chat_function(create_system_prompt, chroma, mongo, model, name,
             embeddings=embeddings,
             documents=texts,
             metadatas=[{
-                'user_id': user_id
+                'user_id': user_id,
+                'time': t,
             }],
             ids=ids,
         )
