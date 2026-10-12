@@ -34,21 +34,46 @@ def create_chat_function(create_system_prompt, chroma, mongo, model, name,
                          history_prompt):
 
     def query_chat_history(user_input, user_id, n_results=10):
-        results = chroma.query(
-            query_texts=[user_input],
-            n_results=n_results,
-            where={'user_id': user_id},
-        )
-        documents = results['documents'][0]
-        metadatas = results['metadatas'][0]
-        result = []
-        for i, doc in enumerate(documents):
-            metadata = metadatas[i]
-            t = metadata['time']
-            result.append(f'{doc}\n\t\t-- {t}')
-        if len(result) == 0:
+        try:
+            count = chroma.count() if hasattr(chroma, 'count') else n_results
+            if count == 0:
+                return None
+            actual_n = min(n_results, count) if count > 0 else n_results
+            query_embeddings = embedder.encode([user_input]).tolist()
+            results = chroma.query(
+                query_embeddings=query_embeddings,
+                n_results=actual_n,
+                where={'user_id': user_id},
+            )
+        except Exception as e:
+            logger.error(f'Error querying chroma: {e}')
             return None
-        return '\n\n'.join(result)
+
+        documents = results.get('documents', [[]])[0] if results.get('documents') else []
+        metadatas = results.get('metadatas', [[]])[0] if results.get('metadatas') else []
+
+        if not documents:
+            return None
+
+        history_items = []
+        for i, doc in enumerate(documents):
+            metadata = metadatas[i] if i < len(metadatas) else {}
+            t = metadata.get('time', '')
+            history_items.append({'doc': doc, 'time': t})
+
+        # Sort retrieved history chronologically so LLM reads history in temporal order
+        history_items.sort(key=lambda x: x['time'])
+
+        result = []
+        for item in history_items:
+            t = item['time']
+            doc = item['doc']
+            if t:
+                result.append(f'{doc}\n\t\t-- {t}')
+            else:
+                result.append(doc)
+
+        return '\n\n'.join(result) if result else None
 
     def chat(user_input, user_name, user_id):
         messages = []
