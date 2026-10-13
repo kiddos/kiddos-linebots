@@ -1,94 +1,48 @@
 from datetime import datetime
-import json
-import requests
+from zoneinfo import ZoneInfo
+import os
 import logging
 
 from fastapi import APIRouter
 from fastapi import Request, HTTPException
 
-import opencc
 from linebot.v3.webhook import WebhookParser
 from linebot.v3.messaging import AsyncApiClient, AsyncMessagingApi, Configuration, ReplyMessageRequest, TextMessage
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
-import configparser
-from pymongo import MongoClient
-from langchain_community.embeddings import OllamaEmbeddings
-from langchain_core.documents import Document
-from langchain_chroma import Chroma
+import chromadb
+from dotenv import load_dotenv
+from opencc import OpenCC
 
-from bible import get_bible_chapters
-from utils import get_user_profile
+from utils import get_mongo_client, get_user_profile, create_chat_function
+
+load_dotenv()
 
 logger = logging.getLogger('uvicorn')
-config = configparser.ConfigParser()
-config.read('config.ini')
 
-# pastor
-pastor_channel_secret = config.get('pastor', 'LINE_CHANNEL_SECRET')
-pastor_channel_access_token = config.get('pastor', 'LINE_CHANNEL_ACCESS_TOKEN')
+MODEL = os.getenv('PASTOR_MODEL', 'llama3')
+NAME = 'pastor'
+
+pastor_channel_secret = os.getenv('PASTOR_LINE_CHANNEL_SECRET') or os.getenv('PASTER_LINE_CHANNEL_SECRET')
+pastor_channel_access_token = os.getenv('PASTOR_LINE_CHANNEL_ACCESS_TOKEN') or os.getenv('PASTER_LINE_CHANNEL_ACCESS_TOKEN')
+
 pastor_configuration = Configuration(access_token=pastor_channel_access_token)
-pastor_async_api_client = AsyncApiClient(pastor_configuration)
-pastor_line_api = AsyncMessagingApi(pastor_async_api_client)
 pastor_parser = WebhookParser(pastor_channel_secret)
 
-username = config.get('mongo', 'username')
-password = config.get('mongo', 'password')
+current_dir = os.path.dirname(__file__)
+chroma_client = chromadb.PersistentClient(path=os.path.join(current_dir, 'data', NAME))
+pastor_chroma = chroma_client.get_or_create_collection(NAME)
 
-# MODEL = 'qwen:7b'
-MODEL = 'llama3'
-HISTORY_SIZE = 30
-
-mongo_url = f'mongodb://{username}:{password}@localhost/'
-mongo_client = MongoClient(mongo_url)
-db = mongo_client[MODEL]
-pastor_collection = db['pastor']
-
-embeddings = OllamaEmbeddings(model=MODEL)
-chapters = get_bible_chapters()
-documents = [Document(page_content=c) for c in chapters]
-db = Chroma(persist_directory="./bible_chroma", embedding_function=embeddings)
-
-converter = opencc.OpenCC('s2t.json')
+mongo_client = get_mongo_client()
+db = mongo_client[NAME]
+pastor_mongo = db[NAME]
+cc = OpenCC('s2t')
 
 router = APIRouter()
 
 
-def save_response(user_id, user_input, response):
-  entry = {
-    'model': MODEL,
-    'user_id': user_id,
-    'user_input': user_input,
-    'response': response,
-    't': datetime.now(),
-  }
-  pastor_collection.insert_many([entry])
-
-
-def chat(messages):
-  url = 'http://localhost:11434/api/chat'
-  data = {
-    'model': MODEL,
-    'messages': messages,
-    'stream': False,
-    'options': {
-      'repeat_last_n': 256,
-      'temperature': 0.95,
-      'num_predict': 1024,
-    },
-  }
-  r = requests.post(url, json=data)
-  r.raise_for_status()
-
-  body = json.loads(r.content)
-  if "error" in body:
-    raise Exception(body["error"])
-  message = body.get("message", {})
-  return message
-
-
 def create_system_prompt(user_name):
-  return f"""你是一位牧師也是一位虔誠的基督徒
+    return f"""你是一位牧師也是一位虔誠的基督徒
 你是一位非常了解聖經的專家
 你也是一位非常了解上帝的基督徒
 你了解許多聖經裡的故事
@@ -105,77 +59,47 @@ def create_system_prompt(user_name):
 """
 
 
-def query_messages(user_id):
-  cursor = pastor_collection.find({
-    'user_id': user_id
-  }, {}).sort('t', -1).limit(HISTORY_SIZE)
-  messages = []
-  query_result = []
-  for entry in cursor:
-    query_result.append(entry)
-
-  for entry in query_result[::-1]:
-    messages.append({
-      'role': 'user',
-      'content': entry['user_input'],
-    })
-    messages.append({'role': 'assistant', 'content': entry['response']})
-  return messages
-
-
-def run_chat(user_id, user_name, user_input):
-  # docs = db.similarity_search(user_input)
-  #
-  # context = []
-  # for doc in docs:
-  #   context.append({'role': 'assistant', 'content': doc.page_content})
-  #   print(context[-1])
-
-  messages = query_messages(user_id)
-  messages = [{
-    'role': 'system',
-    'content': create_system_prompt(user_name)
-  }] + messages
-  # messages += context
-  user_input += '\n請用中文回答'
-  messages.append({'role': 'user', 'content': user_input})
-  logger.info(str(messages[-1]))
-
-  message = chat(messages)
-  logger.info(str(message))
-  save_response(user_id, user_input, message['content'])
-  return message
+chat = create_chat_function(
+    create_system_prompt,
+    pastor_chroma,
+    pastor_mongo,
+    MODEL,
+    NAME,
+    '以下是你與使用者的對話:')
 
 
 @router.post('/pastor')
 async def pastor(request: Request):
-  signature = request.headers['X-Line-Signature']
+    signature = request.headers['X-Line-Signature']
 
-  # get request body as text
-  body = await request.body()
-  body = body.decode()
+    # get request body as text
+    body = await request.body()
+    body = body.decode()
 
-  try:
-    events = pastor_parser.parse(body, signature)
-  except InvalidSignatureError:
-    raise HTTPException(status_code=400, detail="Invalid signature")
+    try:
+        events = pastor_parser.parse(body, signature)
+    except InvalidSignatureError:
+        raise HTTPException(status_code=400, detail="Invalid signature")
 
-  for event in events:
-    if not isinstance(event, MessageEvent):
-      continue
-    if not isinstance(event.message, TextMessageContent):
-      continue
+    for event in events:
+        if not isinstance(event, MessageEvent):
+            continue
+        if not isinstance(event.message, TextMessageContent):
+            continue
 
-    user_id = event.source.user_id
-    user_input = event.message.text
-    profile = get_user_profile(user_id, pastor_channel_access_token)
-    user_name = profile['displayName']
-    message = run_chat(user_id, user_name, user_input)
-    content = converter.convert(message['content'].strip())
+        async with AsyncApiClient(pastor_configuration) as client:
+            line_api = AsyncMessagingApi(client)
 
-    request = ReplyMessageRequest(
-      reply_token=event.reply_token,
-      messages=[TextMessage(text=content)],
-    )
-    await pastor_line_api.reply_message(request)
-  return 'OK'
+            user_id = event.source.user_id
+            user_input = event.message.text
+            profile = get_user_profile(user_id, pastor_channel_access_token)
+            user_name = profile['displayName']
+            message = chat(user_input, user_name, user_id)
+            content = cc.convert(message)
+
+            request = ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=content)],
+            )
+            await line_api.reply_message(request)
+    return 'OK'
