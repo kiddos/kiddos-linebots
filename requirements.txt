@@ -1,5 +1,6 @@
-fastapi[standard]
 line-bot-sdk
+fastapi
+uvicorn[standard]
 pymongo
 python-dotenv
 opencc-python-reimplemented

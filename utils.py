@@ -12,7 +12,7 @@ from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger('uvicorn')
 embedder = SentenceTransformer("all-MiniLM-L6-v2", device='cpu')
-ollama_client = ollama.Client()
+logger.info(os.getenv('OLLAMA_HOST'))
 
 
 def get_mongo_client():
@@ -85,7 +85,7 @@ def create_chat_function(create_system_prompt, chroma, mongo, model, name,
         messages.append({'role': 'system', 'content': system})
         messages.append({'role': 'user', 'content': user_input})
 
-        response = ollama_client.chat(model=model, messages=messages)
+        response = ollama.chat(model=model, messages=messages)
         reply = response['message']['content']
         logger.info(messages[-1])
         logger.info(reply)

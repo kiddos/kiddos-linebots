@@ -1,6 +1,7 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import os
+import logging
 
 from fastapi import APIRouter
 from fastapi import Request, HTTPException
@@ -16,27 +17,29 @@ from utils import get_mongo_client, get_user_profile, create_chat_function
 
 load_dotenv()
 
+logger = logging.getLogger('uvicorn')
+
 # mittens
 mittens_channel_secret = os.getenv('MITTENS_LINE_CHANNEL_SECRET')
 mittens_channel_access_token = os.getenv('MITTENS_LINE_CHANNEL_ACCESS_TOKEN')
 
 mittens_configuration = Configuration(
     access_token=mittens_channel_access_token)
-mittens_async_api_client = AsyncApiClient(mittens_configuration)
-mittens_line_api = AsyncMessagingApi(mittens_async_api_client)
-mittens_parser = WebhookParser(mittens_channel_secret)
 
 MODEL = os.getenv('MITTENS_MODEL')
 NAME = 'mittens'
 
 current_dir = os.path.dirname(__file__)
-# client = chromadb.PersistentClient(path=os.path.join(current_dir, 'data', NAME))
-chroma_client = chromadb.HttpClient(host=os.getenv('CHROMA_HOST'), port=int(os.getenv('CHROMA_PORT')))
+chroma_client = chromadb.PersistentClient(path=os.path.join(current_dir, 'data', NAME))
+# logger.info(os.getenv('CHROMA_HOST'))
+# logger.info(os.getenv('CHROMA_PORT'))
+# chroma_client = chromadb.HttpClient(host=os.getenv('CHROMA_HOST'), port=int(os.getenv('CHROMA_PORT')))
 mittens_chroma = chroma_client.get_or_create_collection(NAME)
 
 mongo_client = get_mongo_client()
 db = mongo_client[NAME]
 mittens_mongo = db[NAME]
+mittens_parser = WebhookParser(mittens_channel_secret)
 
 router = APIRouter()
 
@@ -81,16 +84,19 @@ async def mittens(request: Request):
         if not isinstance(event.message, TextMessageContent):
             continue
 
-        user_id = event.source.user_id
-        user_input = event.message.text
-        profile = get_user_profile(user_id, mittens_channel_access_token)
-        user_name = profile['displayName']
-        message = chat(user_input, user_name, user_id)
-        content = message
+        async with AsyncApiClient(mittens_configuration) as client:
+            line_api = AsyncMessagingApi(client)
 
-        request = ReplyMessageRequest(
-            reply_token=event.reply_token,
-            messages=[TextMessage(text=content)],
-        )
-        await mittens_line_api.reply_message(request)
+            user_id = event.source.user_id
+            user_input = event.message.text
+            profile = get_user_profile(user_id, mittens_channel_access_token)
+            user_name = profile['displayName']
+            message = chat(user_input, user_name, user_id)
+            content = message
+
+            request = ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=content)],
+            )
+            await line_api.reply_message(request)
     return 'OK'
