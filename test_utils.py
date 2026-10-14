@@ -130,6 +130,48 @@ class TestChatHistory(unittest.TestCase):
         system_msg = call_args['messages'][0]['content']
         self.assertIn('Prompt for Charlie with query Specific question', system_msg)
 
+    @patch('utils.embedder')
+    @patch('utils.genai.Client')
+    @patch.dict('os.environ', {'GEMINI_API_KEY': 'fake_key'})
+    def test_gemma_4_genai_api_call(self, mock_genai_client_cls, mock_embedder):
+        mock_embedder.encode.return_value.tolist.return_value = [[0.1, 0.2, 0.3]]
+        mock_qdrant = MagicMock()
+        mock_qdrant.count.return_value.count = 0
+        mock_mongo = MagicMock()
+
+        mock_client = MagicMock()
+        mock_genai_client_cls.return_value = mock_client
+
+        chunk1 = MagicMock()
+        chunk1.text = 'Hello '
+        chunk2 = MagicMock()
+        chunk2.text = 'from Gemma 4!'
+        mock_client.models.generate_content_stream.return_value = [chunk1, chunk2]
+
+        def dummy_prompt(user_name):
+            return f"System prompt for {user_name}"
+
+        chat_fn = utils.create_chat_function(
+            dummy_prompt,
+            mock_qdrant,
+            'test_bot',
+            mock_mongo,
+            'gemma-4-26b-a4b-it',
+            'test_bot',
+            'History:'
+        )
+
+        response = chat_fn('Hello Gemma', 'Dave', 'user789')
+
+        self.assertEqual(response, 'Hello from Gemma 4!')
+        mock_genai_client_cls.assert_called_once_with(api_key='fake_key')
+        mock_client.models.generate_content_stream.assert_called_once()
+
+        _, kwargs = mock_client.models.generate_content_stream.call_args
+        self.assertEqual(kwargs['model'], 'gemma-4-26b-a4b-it')
+        self.assertEqual(kwargs['config'].system_instruction, 'System prompt for Dave')
+        self.assertEqual(kwargs['contents'][0].parts[0].text, 'Hello Gemma')
+
 
 if __name__ == '__main__':
     unittest.main()

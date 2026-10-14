@@ -8,6 +8,8 @@ import uuid
 
 from pymongo import MongoClient
 import ollama
+from google import genai
+from google.genai import types
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct, Filter, FieldCondition, MatchValue, VectorParams, Distance
@@ -125,12 +127,46 @@ def create_chat_function(create_system_prompt, qdrant_client, collection_name, m
         if chat_history:
             system += '\n\n' + history_prompt + '\n' + chat_history
         logger.info(system)
-        messages.append({'role': 'system', 'content': system})
-        messages.append({'role': 'user', 'content': user_input})
+        if model and (
+            model.startswith('gemma-4') or
+            model.startswith('gemini') or
+            (os.getenv('GEMINI_API_KEY') and model.startswith('gemma-'))
+        ):
+            client = genai.Client(
+                api_key=os.environ.get("GEMINI_API_KEY"),
+            )
+            contents = [
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_text(text=user_input),
+                    ],
+                ),
+            ]
+            generate_content_config = types.GenerateContentConfig(
+                system_instruction=system,
+                thinking_config=types.ThinkingConfig(
+                    thinking_level="HIGH",
+                ),
+                audio_transcription_config=types.AudioTranscriptionConfig(),
+            )
+            chunks = []
+            for chunk in client.models.generate_content_stream(
+                model=model,
+                contents=contents,
+                config=generate_content_config,
+            ):
+                if text := chunk.text:
+                    chunks.append(text)
+            reply = "".join(chunks)
+        else:
+            messages.append({'role': 'system', 'content': system})
+            messages.append({'role': 'user', 'content': user_input})
 
-        response = ollama.chat(model=model, messages=messages)
-        reply = response['message']['content']
-        logger.info(messages[-1])
+            response = ollama.chat(model=model, messages=messages)
+            reply = response['message']['content']
+            logger.info(messages[-1])
+
         logger.info(reply)
 
         t = datetime.today().strftime('%Y-%m-%d %H:%M:%S')
