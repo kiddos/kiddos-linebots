@@ -20,6 +20,7 @@ load_dotenv()
 logger = logging.getLogger('uvicorn')
 
 MODEL = os.getenv('PASTOR_MODEL', 'llama3')
+USE_GEMINI_API = (os.getenv('PASTOR_USE_GEMINI_API') or os.getenv('USE_GEMINI_API') or 'false').lower() == 'true'
 NAME = 'pastor'
 
 pastor_channel_secret = os.getenv('PASTOR_LINE_CHANNEL_SECRET') or os.getenv('PASTER_LINE_CHANNEL_SECRET')
@@ -64,7 +65,8 @@ chat = create_chat_function(
     pastor_mongo,
     MODEL,
     NAME,
-    '以下是你與使用者的對話:')
+    '以下是你與使用者的對話:',
+    use_gemini_api=USE_GEMINI_API)
 
 
 @router.post('/pastor')

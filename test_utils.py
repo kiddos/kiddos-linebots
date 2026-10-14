@@ -158,7 +158,8 @@ class TestChatHistory(unittest.TestCase):
             mock_mongo,
             'gemma-4-26b-a4b-it',
             'test_bot',
-            'History:'
+            'History:',
+            use_gemini_api=True
         )
 
         response = chat_fn('Hello Gemma', 'Dave', 'user789')

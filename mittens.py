@@ -26,6 +26,7 @@ mittens_configuration = Configuration(
     access_token=mittens_channel_access_token)
 
 MODEL = os.getenv('MITTENS_MODEL')
+USE_GEMINI_API = (os.getenv('MITTENS_USE_GEMINI_API') or os.getenv('USE_GEMINI_API') or 'false').lower() == 'true'
 NAME = 'mittens'
 
 current_dir = os.path.dirname(__file__)
@@ -58,7 +59,8 @@ chat = create_chat_function(
     mittens_mongo,
     MODEL,
     NAME,
-    'The following is the chat history between you and your master:')
+    'The following is the chat history between you and your master:',
+    use_gemini_api=USE_GEMINI_API)
 
 
 @router.post('/mittens')
