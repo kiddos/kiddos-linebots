@@ -10,10 +10,9 @@ from linebot.v3.webhook import WebhookParser
 from linebot.v3.messaging import AsyncApiClient, AsyncMessagingApi, Configuration, ReplyMessageRequest, TextMessage
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
-import chromadb
 from dotenv import load_dotenv
 
-from utils import get_mongo_client, get_user_profile, create_chat_function
+from utils import get_mongo_client, get_user_profile, create_chat_function, init_qdrant_collection
 
 load_dotenv()
 
@@ -30,11 +29,7 @@ MODEL = os.getenv('MITTENS_MODEL')
 NAME = 'mittens'
 
 current_dir = os.path.dirname(__file__)
-chroma_client = chromadb.PersistentClient(path=os.path.join(current_dir, 'data', NAME))
-# logger.info(os.getenv('CHROMA_HOST'))
-# logger.info(os.getenv('CHROMA_PORT'))
-# chroma_client = chromadb.HttpClient(host=os.getenv('CHROMA_HOST'), port=int(os.getenv('CHROMA_PORT')))
-mittens_chroma = chroma_client.get_or_create_collection(NAME)
+qdrant_client = init_qdrant_collection(NAME)
 
 mongo_client = get_mongo_client()
 db = mongo_client[NAME]
@@ -58,7 +53,8 @@ def create_system_prompt(user_name):
 
 chat = create_chat_function(
     create_system_prompt,
-    mittens_chroma,
+    qdrant_client,
+    NAME,
     mittens_mongo,
     MODEL,
     NAME,

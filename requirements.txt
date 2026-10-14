@@ -6,5 +6,5 @@ python-dotenv
 opencc-python-reimplemented
 sentence_transformers 
 ollama
-pysqlite3-binary
-chromadb
+qdrant-client
+langchain-qdrant
