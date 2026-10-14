@@ -13,7 +13,7 @@ from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from dotenv import load_dotenv
 from opencc import OpenCC
 
-from utils import get_mongo_client, get_user_profile, create_chat_function, init_qdrant_collection
+from utils import get_mongo_client, get_user_profile, create_chat_function, init_qdrant_collection, embedder
 
 load_dotenv()
 
@@ -22,6 +22,7 @@ logger = logging.getLogger('uvicorn')
 MODEL = os.getenv('PASTOR_MODEL', 'llama3')
 USE_GEMINI_API = (os.getenv('PASTOR_USE_GEMINI_API') or os.getenv('USE_GEMINI_API') or 'false').lower() == 'true'
 NAME = 'pastor'
+BIBLE_COLLECTION = 'bible'
 
 pastor_channel_secret = os.getenv('PASTOR_LINE_CHANNEL_SECRET') or os.getenv('PASTER_LINE_CHANNEL_SECRET')
 pastor_channel_access_token = os.getenv('PASTOR_LINE_CHANNEL_ACCESS_TOKEN') or os.getenv('PASTER_LINE_CHANNEL_ACCESS_TOKEN')
@@ -40,8 +41,38 @@ cc = OpenCC('s2t')
 router = APIRouter()
 
 
-def create_system_prompt(user_name):
-    return f"""你是一位牧師也是一位虔誠的基督徒
+def search_bible(query: str, limit: int = 3) -> str:
+    if not query:
+        return ""
+    try:
+        if not qdrant_client.collection_exists(BIBLE_COLLECTION):
+            return ""
+        encoded = embedder.encode([query]).tolist()
+        query_vector = encoded[0] if isinstance(encoded[0], list) else encoded
+        query_res = qdrant_client.query_points(
+            collection_name=BIBLE_COLLECTION,
+            query=query_vector,
+            limit=limit,
+        )
+        points = query_res.points if hasattr(query_res, 'points') else query_res
+        if not points:
+            return ""
+
+        verses = []
+        for point in points:
+            payload = point.payload if hasattr(point, 'payload') else (point.get('payload', {}) if isinstance(point, dict) else {})
+            # LangChain QdrantVectorStore stores content in 'page_content' or custom payload field
+            content = payload.get('page_content') or payload.get('document', '')
+            if content:
+                verses.append(content)
+        return "\n\n".join(verses)
+    except Exception as e:
+        logger.error(f"Error querying Bible vector db: {e}")
+        return ""
+
+
+def create_system_prompt(user_name, user_input=None):
+    prompt = f"""你是一位牧師也是一位虔誠的基督徒
 你是一位非常了解聖經的專家
 你也是一位非常了解上帝的基督徒
 你了解許多聖經裡的故事
@@ -56,6 +87,11 @@ def create_system_prompt(user_name):
 你將會為使用者禱告與祝福
 阿們
 """
+    if user_input:
+        bible_context = search_bible(user_input)
+        if bible_context:
+            prompt += f"\n\n以下是相關的聖經經文參考:\n{bible_context}"
+    return prompt
 
 
 chat = create_chat_function(
