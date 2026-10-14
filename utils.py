@@ -117,7 +117,10 @@ def create_chat_function(create_system_prompt, qdrant_client, collection_name, m
 
     def chat(user_input, user_name, user_id):
         messages = []
-        system = create_system_prompt(user_name)
+        try:
+            system = create_system_prompt(user_name, user_input)
+        except TypeError:
+            system = create_system_prompt(user_name)
         chat_history = query_chat_history(user_input, user_id)
         if chat_history:
             system += '\n\n' + history_prompt + '\n' + chat_history

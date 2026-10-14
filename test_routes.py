@@ -6,6 +6,8 @@ os.environ.setdefault('YOSHI_LINE_CHANNEL_SECRET', 'dummy_secret')
 os.environ.setdefault('YOSHI_LINE_CHANNEL_ACCESS_TOKEN', 'dummy_token')
 os.environ.setdefault('PASTOR_LINE_CHANNEL_SECRET', 'dummy_secret')
 os.environ.setdefault('PASTOR_LINE_CHANNEL_ACCESS_TOKEN', 'dummy_token')
+os.environ.setdefault('KIDDOS_BOT_LINE_CHANNEL_SECRET', 'dummy_secret')
+os.environ.setdefault('KIDDOS_BOT_LINE_CHANNEL_ACCESS_TOKEN', 'dummy_token')
 
 import unittest
 from unittest.mock import MagicMock, patch, AsyncMock
@@ -92,6 +94,58 @@ class TestRoutes(unittest.TestCase):
         self.assertEqual(response.json(), 'OK')
         mock_chat.assert_called_once_with('Hello Pastor', 'TestUser', 'user_pastor')
         mock_api_instance.reply_message.assert_called_once()
+
+    @patch('kiddos_bot.chat')
+    @patch('kiddos_bot.get_user_profile')
+    @patch('kiddos_bot.AsyncApiClient')
+    @patch('kiddos_bot.AsyncMessagingApi')
+    @patch('kiddos_bot.bot_parser')
+    def test_kiddos_bot_route_valid_event(
+        self, mock_parser, mock_messaging_api, mock_api_client_cls, mock_get_profile, mock_chat
+    ):
+        event = MessageEvent(
+            replyToken='token_kiddos',
+            source=UserSource(userId='user_kiddos'),
+            message=TextMessageContent(id='msg_3', text='What is the capital of France?', quoteToken='dummy_quote'),
+            timestamp=1234567890,
+            mode='active',
+            webhookEventId='evt_3',
+            deliveryContext=DeliveryContext(isRedelivery=False)
+        )
+
+        mock_parser.parse.return_value = [event]
+        mock_get_profile.return_value = {'displayName': 'TestUser'}
+        mock_chat.return_value = 'The capital of France is Paris.'
+
+        mock_api_instance = AsyncMock()
+        mock_messaging_api.return_value = mock_api_instance
+
+        mock_client_ctx = AsyncMock()
+        mock_api_client_cls.return_value.__aenter__.return_value = mock_client_ctx
+
+        headers = {'X-Line-Signature': 'dummy_sig'}
+        response = self.client.post('/kiddos-bot', data='{}', headers=headers)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), 'OK')
+        mock_chat.assert_called_once_with('What is the capital of France?', 'TestUser', 'user_kiddos')
+        mock_api_instance.reply_message.assert_called_once()
+
+    @patch('kiddos_bot.TavilyClient')
+    @patch.dict(os.environ, {'TAVILY_API_KEY': 'fake_key'})
+    def test_search_tavily(self, mock_tavily_client_cls):
+        import kiddos_bot
+        mock_client = MagicMock()
+        mock_tavily_client_cls.return_value = mock_client
+        mock_client.search.return_value = {
+            'results': [
+                {'title': 'Paris Info', 'content': 'Paris is the capital of France.'}
+            ]
+        }
+
+        res = kiddos_bot.search_tavily('capital of France')
+        self.assertIn('Paris is the capital of France.', res)
+        mock_client.search.assert_called_once_with(query='capital of France')
 
 
 if __name__ == '__main__':
