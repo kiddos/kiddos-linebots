@@ -1,9 +1,5 @@
-_import__('pysqlite3')
-import sys
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-
 from langchain_community.embeddings import OllamaEmbeddings
-from langchain_chroma import Chroma
+from langchain_qdrant import QdrantVectorStore
 from langchain_core.documents import Document
 
 # a dictionary of bible codes
@@ -111,10 +107,11 @@ def main():
   embeddings = OllamaEmbeddings(model='qwen:7b')
   chapters = get_bible_chapters()
   documents = [Document(page_content=c) for c in chapters]
-  db = Chroma.from_documents(
+  db = QdrantVectorStore.from_documents(
     documents,
     embedding=embeddings,
-    persist_directory='./bible_chroma'
+    path="data/my_qdrant_db",
+    collection_name="bible"
   )
   print(db)
 
