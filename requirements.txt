@@ -8,3 +8,5 @@ sentence_transformers
 ollama
 qdrant-client
 langchain-qdrant
+google-genai
+tavily-python
