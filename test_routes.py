@@ -147,6 +147,50 @@ class TestRoutes(unittest.TestCase):
         self.assertIn('Paris is the capital of France.', res)
         mock_client.search.assert_called_once_with(query='capital of France')
 
+    @patch('kiddos_bot.requests.post')
+    def test_control_ledstrip_success(self, mock_post):
+        import kiddos_bot
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = 'OK'
+        mock_post.return_value = mock_response
+
+        result = kiddos_bot.control_ledstrip(50, 'white')
+        self.assertIn('Successfully set LED strip brightness to 50 and mode to \'white\'', result)
+        mock_post.assert_called_once_with(
+            'http://192.168.0.136/api/ledstrip',
+            json={'brightness': 50, 'mode': 'white'},
+            timeout=5
+        )
+
+    def test_control_ledstrip_invalid_mode(self):
+        import kiddos_bot
+        result = kiddos_bot.control_ledstrip(50, 'invalid_mode')
+        self.assertIn("Invalid mode 'invalid_mode'", result)
+
+    @patch('kiddos_bot.requests.post')
+    def test_control_ledstrip_brightness_clamping(self, mock_post):
+        import kiddos_bot
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        result = kiddos_bot.control_ledstrip(150, 'rgb')
+        self.assertIn('Successfully set LED strip brightness to 100 and mode to \'rgb\'', result)
+        mock_post.assert_called_once_with(
+            'http://192.168.0.136/api/ledstrip',
+            json={'brightness': 100, 'mode': 'rgb'},
+            timeout=5
+        )
+
+    @patch('kiddos_bot.requests.post')
+    def test_control_ledstrip_http_error(self, mock_post):
+        import kiddos_bot
+        mock_post.side_effect = Exception('Connection refused')
+
+        result = kiddos_bot.control_ledstrip(50, 'random')
+        self.assertIn('Failed to control LED strip: Connection refused', result)
+
     @patch('pastor.embedder')
     @patch('pastor.qdrant_client')
     def test_pastor_search_bible_and_prompt(self, mock_qdrant, mock_embedder):

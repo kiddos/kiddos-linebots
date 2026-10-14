@@ -54,7 +54,7 @@ def get_user_profile(user_id, channel_access_token):
     return json.loads(r.content)
 
 
-def generate_gemini_response(model, user_input, system):
+def generate_gemini_response(model, user_input, system, tools=None):
     client = genai.Client(
         api_key=os.environ.get("GEMINI_API_KEY"),
     )
@@ -72,30 +72,85 @@ def generate_gemini_response(model, user_input, system):
             thinking_level="HIGH",
         ),
         audio_transcription_config=types.AudioTranscriptionConfig(),
+        tools=tools,
     )
-    chunks = []
-    for chunk in client.models.generate_content_stream(
-        model=model,
-        contents=contents,
-        config=generate_content_config,
-    ):
-        if text := chunk.text:
-            chunks.append(text)
-    return "".join(chunks)
+    if tools:
+        response = client.models.generate_content(
+            model=model,
+            contents=contents,
+            config=generate_content_config,
+        )
+        return response.text or ""
+    else:
+        chunks = []
+        for chunk in client.models.generate_content_stream(
+            model=model,
+            contents=contents,
+            config=generate_content_config,
+        ):
+            if text := chunk.text:
+                chunks.append(text)
+        return "".join(chunks)
 
 
-def generate_ollama_response(model, user_input, system):
+def generate_ollama_response(model, user_input, system, tools=None):
     messages = [
         {'role': 'system', 'content': system},
         {'role': 'user', 'content': user_input}
     ]
-    response = ollama.chat(model=model, messages=messages)
+    kwargs = {}
+    if tools:
+        kwargs['tools'] = tools
+
+    response = ollama.chat(model=model, messages=messages, **kwargs)
     logger.info(messages[-1])
-    return response['message']['content']
+
+    msg = response.get('message') if isinstance(response, dict) else getattr(response, 'message', {})
+    tool_calls = msg.get('tool_calls') if isinstance(msg, dict) else getattr(msg, 'tool_calls', None)
+
+    if tool_calls:
+        tool_map = {fn.__name__: fn for fn in tools} if tools else {}
+        messages.append(msg)
+        for tool_call in tool_calls:
+            if isinstance(tool_call, dict):
+                fn_name = tool_call.get('function', {}).get('name')
+                fn_args = tool_call.get('function', {}).get('arguments', {})
+            else:
+                fn_name = getattr(getattr(tool_call, 'function', None), 'name', None)
+                fn_args = getattr(getattr(tool_call, 'function', None), 'arguments', {})
+
+            if isinstance(fn_args, str):
+                try:
+                    fn_args = json.loads(fn_args)
+                except Exception:
+                    pass
+
+            if fn_name in tool_map:
+                try:
+                    result = tool_map[fn_name](**fn_args)
+                except Exception as e:
+                    result = f"Error executing tool {fn_name}: {e}"
+            else:
+                result = f"Tool {fn_name} not found."
+
+            messages.append({
+                'role': 'tool',
+                'content': str(result),
+            })
+
+        response = ollama.chat(model=model, messages=messages, **kwargs)
+        final_msg = response.get('message') if isinstance(response, dict) else getattr(response, 'message', {})
+        if isinstance(final_msg, dict):
+            return final_msg.get('content', '')
+        return getattr(final_msg, 'content', '')
+
+    if isinstance(msg, dict):
+        return msg.get('content', '')
+    return getattr(msg, 'content', '')
 
 
 def create_chat_function(create_system_prompt, qdrant_client, collection_name, mongo, model, name,
-                         history_prompt, use_gemini_api=False):
+                         history_prompt, use_gemini_api=False, tools=None):
 
     def query_chat_history(user_input, user_id, n_results=10):
         try:
@@ -168,9 +223,9 @@ def create_chat_function(create_system_prompt, qdrant_client, collection_name, m
         logger.info(system)
 
         if use_gemini_api:
-            reply = generate_gemini_response(model, user_input, system)
+            reply = generate_gemini_response(model, user_input, system, tools=tools)
         else:
-            reply = generate_ollama_response(model, user_input, system)
+            reply = generate_ollama_response(model, user_input, system, tools=tools)
 
         logger.info(reply)
 
