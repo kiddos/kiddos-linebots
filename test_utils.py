@@ -173,6 +173,39 @@ class TestChatHistory(unittest.TestCase):
         self.assertEqual(kwargs['config'].system_instruction, 'System prompt for Dave')
         self.assertEqual(kwargs['contents'][0].parts[0].text, 'Hello Gemma')
 
+    @patch('utils.ollama.chat')
+    def test_generate_ollama_response_with_tool_calls(self, mock_ollama_chat):
+        mock_tool = MagicMock(__name__='dummy_tool')
+        mock_tool.return_value = 'Tool result'
+
+        mock_first_msg = {
+            'role': 'assistant',
+            'content': '',
+            'tool_calls': [
+                {
+                    'function': {
+                        'name': 'dummy_tool',
+                        'arguments': {'param': 'val'}
+                    }
+                }
+            ]
+        }
+        mock_second_msg = {
+            'role': 'assistant',
+            'content': 'Done setting tool!'
+        }
+
+        mock_ollama_chat.side_effect = [
+            {'message': mock_first_msg},
+            {'message': mock_second_msg}
+        ]
+
+        reply = utils.generate_ollama_response('gemma3', 'Turn on light', 'System prompt', tools=[mock_tool])
+
+        self.assertEqual(reply, 'Done setting tool!')
+        mock_tool.assert_called_once_with(param='val')
+        self.assertEqual(mock_ollama_chat.call_count, 2)
+
 
 if __name__ == '__main__':
     unittest.main()
