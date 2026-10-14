@@ -99,6 +99,37 @@ class TestChatHistory(unittest.TestCase):
         self.assertNotEqual(pos_later, -1)
         self.assertLess(pos_earlier, pos_later)
 
+    @patch('utils.embedder')
+    @patch('utils.ollama')
+    def test_create_system_prompt_with_user_input(self, mock_ollama, mock_embedder):
+        mock_embedder.encode.return_value.tolist.return_value = [[0.1, 0.2, 0.3]]
+        mock_qdrant = MagicMock()
+        mock_qdrant.count.return_value.count = 0
+        mock_mongo = MagicMock()
+
+        def dummy_prompt_two_args(user_name, user_input):
+            return f"Prompt for {user_name} with query {user_input}"
+
+        chat_fn = utils.create_chat_function(
+            dummy_prompt_two_args,
+            mock_qdrant,
+            'test_bot',
+            mock_mongo,
+            'test_model',
+            'test_bot',
+            'History:'
+        )
+
+        mock_ollama.chat.return_value = {
+            'message': {'content': 'Response'}
+        }
+
+        chat_fn('Specific question', 'Charlie', 'user456')
+
+        call_args = mock_ollama.chat.call_args[1]
+        system_msg = call_args['messages'][0]['content']
+        self.assertIn('Prompt for Charlie with query Specific question', system_msg)
+
 
 if __name__ == '__main__':
     unittest.main()
