@@ -19,6 +19,7 @@ load_dotenv()
 logger = logging.getLogger('uvicorn')
 
 MODEL = os.getenv('KIDDOS_BOT_MODEL') or os.getenv('KIDDOS_MODEL') or 'gemma3'
+USE_GEMINI_API = (os.getenv('KIDDOS_BOT_USE_GEMINI_API') or os.getenv('KIDDOS_USE_GEMINI_API') or os.getenv('USE_GEMINI_API') or 'false').lower() == 'true'
 NAME = 'kiddos'
 
 bot_channel_secret = os.getenv('KIDDOS_BOT_LINE_CHANNEL_SECRET') or os.getenv('KIDDOS_LINE_CHANNEL_SECRET')
@@ -78,7 +79,8 @@ chat = create_chat_function(
     kiddos_mongo,
     MODEL,
     NAME,
-    'The following is the chat history between you and the user:')
+    'The following is the chat history between you and the user:',
+    use_gemini_api=USE_GEMINI_API)
 
 
 @router.post('/kiddos-bot')

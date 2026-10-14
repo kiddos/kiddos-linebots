@@ -20,6 +20,7 @@ load_dotenv()
 logger = logging.getLogger('uvicorn')
 
 MODEL = os.getenv('YOSHI_MODEL')
+USE_GEMINI_API = (os.getenv('YOSHI_USE_GEMINI_API') or os.getenv('USE_GEMINI_API') or 'false').lower() == 'true'
 NAME = 'yoshi'
 
 yoshi_channel_secret = os.getenv('YOSHI_LINE_CHANNEL_SECRET')
@@ -59,7 +60,8 @@ chat = create_chat_function(
     yoshi_mongo,
     MODEL,
     NAME,
-    '以下是你與使用者的對話:')
+    '以下是你與使用者的對話:',
+    use_gemini_api=USE_GEMINI_API)
 
 
 @router.post('/yoshi')
