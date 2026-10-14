@@ -147,6 +147,25 @@ class TestRoutes(unittest.TestCase):
         self.assertIn('Paris is the capital of France.', res)
         mock_client.search.assert_called_once_with(query='capital of France')
 
+    @patch('pastor.embedder')
+    @patch('pastor.qdrant_client')
+    def test_pastor_search_bible_and_prompt(self, mock_qdrant, mock_embedder):
+        import pastor
+        mock_qdrant.collection_exists.return_value = True
+        mock_embedder.encode.return_value.tolist.return_value = [[0.1, 0.2, 0.3]]
+
+        mock_p1 = MagicMock()
+        mock_p1.payload = {'page_content': '[創世紀 1:1 (GEN 1:1)]\n中文: 起初，上帝創造天地。'}
+        mock_qdrant.query_points.return_value.points = [mock_p1]
+
+        res = pastor.search_bible('創世')
+        self.assertIn('起初，上帝創造天地。', res)
+        mock_qdrant.query_points.assert_called_once()
+
+        prompt = pastor.create_system_prompt('Alice', '創世')
+        self.assertIn('以下是相關的聖經經文參考:', prompt)
+        self.assertIn('起初，上帝創造天地。', prompt)
+
 
 if __name__ == '__main__':
     unittest.main()
