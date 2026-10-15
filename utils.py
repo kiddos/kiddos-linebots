@@ -213,10 +213,24 @@ def create_chat_function(create_system_prompt, qdrant_client, collection_name, m
         return '\n\n'.join(result) if result else None
 
     def chat(user_input, user_name, user_id):
+        import inspect
+        sig = inspect.signature(create_system_prompt)
+        params = sig.parameters
+        kwargs = {}
+        if 'user_name' in params:
+            kwargs['user_name'] = user_name
+        if 'user_input' in params:
+            kwargs['user_input'] = user_input
+        if 'user_id' in params:
+            kwargs['user_id'] = user_id
+
         try:
-            system = create_system_prompt(user_name, user_input)
+            system = create_system_prompt(**kwargs)
         except TypeError:
-            system = create_system_prompt(user_name)
+            try:
+                system = create_system_prompt(user_name, user_input)
+            except TypeError:
+                system = create_system_prompt(user_name)
         chat_history = query_chat_history(user_input, user_id)
         if chat_history:
             system += '\n\n' + history_prompt + '\n' + chat_history
