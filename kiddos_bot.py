@@ -101,7 +101,7 @@ def create_system_prompt(user_name, user_input=None):
     t = now.strftime("%Y-%m-%d %H:%M:%S")
     p = f"You are a helpful AI assistant who answers questions from {user_name}."
     p += f"\nCurrently the time is {t}."
-    p += "\nYou have access to a tool to control an ESP32 LED strip. You can set its brightness (0-100) and mode ('white', 'rgb', 'random') when requested by the user."
+    p += "\nYou have access to a tool to control the LED strip on my desktop. You can set its brightness (0-100) and mode ('white', 'rgb', 'random') when requested by the user."
     if user_input:
         search_results = search_tavily(user_input)
         if search_results:
