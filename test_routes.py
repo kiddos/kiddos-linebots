@@ -148,6 +148,23 @@ class TestRoutes(unittest.TestCase):
         mock_client.search.assert_called_once_with(query='capital of France')
 
     @patch('kiddos_bot.requests.post')
+    @patch.dict(os.environ, {'LED_CONTROLLER_URL': 'http://192.168.1.200'})
+    def test_control_ledstrip_custom_env_url(self, mock_post):
+        import kiddos_bot
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = 'OK'
+        mock_post.return_value = mock_response
+
+        result = kiddos_bot.control_ledstrip(30, 'random')
+        self.assertIn('Successfully set LED strip brightness to 30 and mode to \'random\'', result)
+        mock_post.assert_called_once_with(
+            'http://192.168.1.200/api/ledstrip',
+            json={'brightness': 30, 'mode': 'random'},
+            timeout=5
+        )
+
+    @patch('kiddos_bot.requests.post')
     def test_control_ledstrip_success(self, mock_post):
         import kiddos_bot
         mock_response = MagicMock()

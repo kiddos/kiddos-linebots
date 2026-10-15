@@ -68,7 +68,9 @@ def control_ledstrip(brightness: int, mode: str) -> str:
         brightness: Brightness level from 0 to 100.
         mode: Lighting mode ('white', 'rgb', or 'random').
     """
-    url = os.getenv("LEDSTRIP_URL", "http://192.168.0.136/api/ledstrip")
+    base_url = os.getenv("LED_CONTROLLER_URL") or os.getenv("LEDSTRIP_URL") or "http://192.168.0.136"
+    base_url = base_url.rstrip("/")
+    url = base_url if base_url.endswith("/api/ledstrip") else f"{base_url}/api/ledstrip"
     try:
         brightness_val = int(brightness)
         brightness_val = max(0, min(100, brightness_val))
