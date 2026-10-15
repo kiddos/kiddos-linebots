@@ -165,6 +165,7 @@ class TestRoutes(unittest.TestCase):
         )
 
     @patch('kiddos_bot.requests.post')
+    @patch.dict(os.environ, {'LED_CONTROLLER_URL': 'http://192.168.1.200'})
     def test_control_ledstrip_success(self, mock_post):
         import kiddos_bot
         mock_response = MagicMock()
@@ -175,7 +176,7 @@ class TestRoutes(unittest.TestCase):
         result = kiddos_bot.control_ledstrip(50, 'white')
         self.assertIn('Successfully set LED strip brightness to 50 and mode to \'white\'', result)
         mock_post.assert_called_once_with(
-            'http://192.168.0.136/api/ledstrip',
+            'http://192.168.1.200/api/ledstrip',
             json={'brightness': 50, 'mode': 'white'},
             timeout=5
         )
@@ -186,6 +187,7 @@ class TestRoutes(unittest.TestCase):
         self.assertIn("Invalid mode 'invalid_mode'", result)
 
     @patch('kiddos_bot.requests.post')
+    @patch.dict(os.environ, {'LED_CONTROLLER_URL': 'http://192.168.1.200'})
     def test_control_ledstrip_brightness_clamping(self, mock_post):
         import kiddos_bot
         mock_response = MagicMock()
@@ -195,7 +197,7 @@ class TestRoutes(unittest.TestCase):
         result = kiddos_bot.control_ledstrip(150, 'rgb')
         self.assertIn('Successfully set LED strip brightness to 100 and mode to \'rgb\'', result)
         mock_post.assert_called_once_with(
-            'http://192.168.0.136/api/ledstrip',
+            'http://192.168.1.200/api/ledstrip',
             json={'brightness': 100, 'mode': 'rgb'},
             timeout=5
         )
