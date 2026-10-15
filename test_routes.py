@@ -147,16 +147,16 @@ class TestRoutes(unittest.TestCase):
         self.assertIn('Paris is the capital of France.', res)
         mock_client.search.assert_called_once_with(query='capital of France')
 
-    @patch('kiddos_bot.requests.post')
+    @patch('tools.requests.post')
     @patch.dict(os.environ, {'LED_CONTROLLER_URL': 'http://192.168.1.200'})
     def test_control_ledstrip_custom_env_url(self, mock_post):
-        import kiddos_bot
+        import tools
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.text = 'OK'
         mock_post.return_value = mock_response
 
-        result = kiddos_bot.control_ledstrip(30, 'random')
+        result = tools.control_ledstrip(30, 'random')
         self.assertIn('Successfully set LED strip brightness to 30 and mode to \'random\'', result)
         mock_post.assert_called_once_with(
             'http://192.168.1.200/api/ledstrip',
@@ -164,16 +164,16 @@ class TestRoutes(unittest.TestCase):
             timeout=5
         )
 
-    @patch('kiddos_bot.requests.post')
+    @patch('tools.requests.post')
     @patch.dict(os.environ, {'LED_CONTROLLER_URL': 'http://192.168.1.200'})
     def test_control_ledstrip_success(self, mock_post):
-        import kiddos_bot
+        import tools
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.text = 'OK'
         mock_post.return_value = mock_response
 
-        result = kiddos_bot.control_ledstrip(50, 'white')
+        result = tools.control_ledstrip(50, 'white')
         self.assertIn('Successfully set LED strip brightness to 50 and mode to \'white\'', result)
         mock_post.assert_called_once_with(
             'http://192.168.1.200/api/ledstrip',
@@ -181,20 +181,21 @@ class TestRoutes(unittest.TestCase):
             timeout=5
         )
 
+    @patch.dict(os.environ, {'LED_CONTROLLER_URL': 'http://192.168.1.200'})
     def test_control_ledstrip_invalid_mode(self):
-        import kiddos_bot
-        result = kiddos_bot.control_ledstrip(50, 'invalid_mode')
+        import tools
+        result = tools.control_ledstrip(50, 'invalid_mode')
         self.assertIn("Invalid mode 'invalid_mode'", result)
 
-    @patch('kiddos_bot.requests.post')
+    @patch('tools.requests.post')
     @patch.dict(os.environ, {'LED_CONTROLLER_URL': 'http://192.168.1.200'})
     def test_control_ledstrip_brightness_clamping(self, mock_post):
-        import kiddos_bot
+        import tools
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_post.return_value = mock_response
 
-        result = kiddos_bot.control_ledstrip(150, 'rgb')
+        result = tools.control_ledstrip(150, 'rgb')
         self.assertIn('Successfully set LED strip brightness to 100 and mode to \'rgb\'', result)
         mock_post.assert_called_once_with(
             'http://192.168.1.200/api/ledstrip',
@@ -202,13 +203,42 @@ class TestRoutes(unittest.TestCase):
             timeout=5
         )
 
-    @patch('kiddos_bot.requests.post')
+    @patch('tools.requests.post')
+    @patch.dict(os.environ, {'LED_CONTROLLER_URL': 'http://192.168.1.200'})
     def test_control_ledstrip_http_error(self, mock_post):
-        import kiddos_bot
+        import tools
         mock_post.side_effect = Exception('Connection refused')
 
-        result = kiddos_bot.control_ledstrip(50, 'random')
+        result = tools.control_ledstrip(50, 'random')
         self.assertIn('Failed to control LED strip: Connection refused', result)
+
+    @patch('tools.requests.get')
+    @patch.dict(os.environ, {'LED_CONTROLLER_URL': 'http://192.168.1.200'})
+    def test_read_room_dht11_success(self, mock_get):
+        import tools
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"temperature": 23.0, "humidity": 52.0}
+        mock_get.return_value = mock_response
+
+        result = tools.read_room_dht11()
+        self.assertIn('Room temperature: 23.0°C, humidity: 52.0%.', result)
+        mock_get.assert_called_once_with('http://192.168.1.200/api/dht11', timeout=5)
+
+    @patch('tools.requests.get')
+    @patch.dict(os.environ, {'LED_CONTROLLER_URL': 'http://192.168.1.200'})
+    def test_read_room_dht11_http_error(self, mock_get):
+        import tools
+        mock_get.side_effect = Exception('Timeout error')
+
+        result = tools.read_room_dht11()
+        self.assertIn('Failed to read room temperature and humidity: Timeout error', result)
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_tools_no_env_url(self):
+        import tools
+        self.assertEqual(tools.control_ledstrip(50, 'white'), "LED controller URL is not configured.")
+        self.assertEqual(tools.read_room_dht11(), "LED controller URL is not configured.")
 
     @patch('pastor.embedder')
     @patch('pastor.qdrant_client')

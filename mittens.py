@@ -22,6 +22,7 @@ from utils import (
     generate_gemini_response,
     generate_ollama_response,
 )
+from tools import control_ledstrip, read_room_dht11
 
 load_dotenv()
 
@@ -203,7 +204,8 @@ _chat_fn = create_chat_function(
     MODEL,
     NAME,
     'The following is the chat history between you and your master:',
-    use_gemini_api=USE_GEMINI_API)
+    use_gemini_api=USE_GEMINI_API,
+    tools=[control_ledstrip, read_room_dht11])
 
 
 def chat(user_input, user_name, user_id):
