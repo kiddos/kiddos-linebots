@@ -21,7 +21,7 @@ logger.info(os.getenv('OLLAMA_HOST'))
 _qdrant_client = None
 
 
-def get_qdrant_client(path="data/my_qdrant_db"):
+def get_qdrant_client(path="data/qdrant_storage"):
     global _qdrant_client
     if _qdrant_client is None:
         _qdrant_client = QdrantClient(path=path)

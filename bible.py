@@ -170,7 +170,7 @@ def main():
     db = QdrantVectorStore.from_documents(
         documents,
         embedding=embeddings,
-        path="data/my_qdrant_db",
+        path="data/qdrant_storage",
         collection_name="bible"
     )
     print(db)
