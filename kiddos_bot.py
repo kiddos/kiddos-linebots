@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from tavily import TavilyClient
 
 from utils import get_mongo_client, get_user_profile, create_chat_function, init_qdrant_collection
+from tools import control_ledstrip, read_room_dht11
 
 load_dotenv()
 
@@ -61,47 +62,12 @@ def search_tavily(query: str) -> str:
         return ""
 
 
-def control_ledstrip(brightness: int, mode: str) -> str:
-    """Control the ESP32 LED strip brightness and mode.
-
-    Args:
-        brightness: Brightness level from 0 to 100.
-        mode: Lighting mode ('white', 'rgb', or 'random').
-    """
-    base_url = os.getenv("LED_CONTROLLER_URL") or os.getenv("LEDSTRIP_URL")
-    base_url = base_url.rstrip("/")
-    url = base_url if base_url.endswith("/api/ledstrip") else f"{base_url}/api/ledstrip"
-    try:
-        brightness_val = int(brightness)
-        brightness_val = max(0, min(100, brightness_val))
-    except (ValueError, TypeError):
-        return f"Invalid brightness value '{brightness}'. Brightness must be an integer between 0 and 100."
-
-    mode_str = str(mode).lower() if mode else ""
-    if mode_str not in ["white", "rgb", "random"]:
-        return f"Invalid mode '{mode}'. Mode must be 'white', 'rgb', or 'random'."
-
-    payload = {
-        "brightness": brightness_val,
-        "mode": mode_str
-    }
-    try:
-        res = requests.post(url, json=payload, timeout=5)
-        if res.status_code == 200:
-            return f"Successfully set LED strip brightness to {brightness_val} and mode to '{mode_str}'."
-        else:
-            return f"LED strip controller returned status code {res.status_code}: {res.text}"
-    except Exception as e:
-        logger.error(f"Error controlling LED strip: {e}")
-        return f"Failed to control LED strip: {e}"
-
-
 def create_system_prompt(user_name, user_input=None):
     now = datetime.now(ZoneInfo("Asia/Taipei"))
     t = now.strftime("%Y-%m-%d %H:%M:%S")
     p = f"You are a helpful AI assistant who answers questions from {user_name}."
     p += f"\nCurrently the time is {t}."
-    p += "\nYou have access to a tool to control the LED strip on my desktop. You can set its brightness (0-100) and mode ('white', 'rgb', 'random') when requested by the user."
+    p += "\nYou have access to tools to control the LED strip on my desktop (brightness 0-100, modes 'white', 'rgb', 'random') and to read the room temperature and humidity via the DHT11 sensor."
     if user_input:
         search_results = search_tavily(user_input)
         if search_results:
@@ -118,7 +84,7 @@ chat = create_chat_function(
     NAME,
     'The following is the chat history between you and the user:',
     use_gemini_api=USE_GEMINI_API,
-    tools=[control_ledstrip])
+    tools=[control_ledstrip, read_room_dht11])
 
 
 @router.post('/kiddos-bot')
